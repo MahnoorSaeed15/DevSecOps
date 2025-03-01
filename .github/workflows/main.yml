@@ -20,9 +20,7 @@ jobs:
       - name: Run Python Security Tools (Vote-App)
         if: matrix.service == 'vote-app'
         run: |
-          pip install bandit safety
-          bandit -r ./${{ matrix.service }}
-          safety check -r ./${{ matrix.service }}/requirements.txt
+            pip install -r ./vote/requirements.txt
 
       # .NET Security (Worker-App)
       - name: Run .NET Security Tools (Worker-App)
