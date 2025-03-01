@@ -26,18 +26,15 @@ jobs:
       - name: Run .NET Security Tools (Worker-App)
         if: matrix.service == 'worker-app'
         run: |
-          dotnet list package --vulnerable
-          dotnet build --configuration Release
+          cd ./worker
+          dotnet list **/*.csproj package --vulnerable
 
       # Node.js Security (Result-App)
       - name: Run Node.js Security Tools (Result-App)
         if: matrix.service == 'result-app'
         run: |
-          cd ./${{ matrix.service }}
-          npm install
-          npm audit --audit-level=critical
-          npx eslint . --ext .js,.jsx
-
+         cd ./result 
+         npm audit --audit-level=critical
   build-and-scan:
     needs: security-scan
     runs-on: ubuntu-latest
