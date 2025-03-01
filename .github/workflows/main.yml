@@ -6,40 +6,61 @@ on:
       - main
 
 jobs:
-  code-scan:
+  security-scan:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [worker-app, result-app, vote-app]
+        service: [vote-app, worker-app, result-app]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: SonarQube Scan (${{ matrix.service }})
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_HOST_URL: "http://20.55.25.25:9000"
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: ./${{ matrix.service }}
+      # Python Security (Vote-App)
+      - name: Run Python Security Tools (Vote-App)
+        if: matrix.service == 'vote-app'
+        run: |
+          pip install bandit safety
+          bandit -r ./${{ matrix.service }}
+          safety check -r ./${{ matrix.service }}/requirements.txt
+
+      # .NET Security (Worker-App)
+      - name: Run .NET Security Tools (Worker-App)
+        if: matrix.service == 'worker-app'
+        run: |
+          dotnet list package --vulnerable
+          dotnet build --configuration Release
+
+      # Node.js Security (Result-App)
+      - name: Run Node.js Security Tools (Result-App)
+        if: matrix.service == 'result-app'
+        run: |
+          cd ./${{ matrix.service }}
+          npm install
+          npm audit --audit-level=critical
+          npx eslint . --ext .js,.jsx
 
   build-and-scan:
-    needs: code-scan
+    needs: security-scan
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [worker-app, result-app, vote-app]
+        service: [vote-app, worker-app, result-app]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Build Docker Image (${{ matrix.service }})
         run: |
-          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest ./${{ matrix.service }}
+          cd ${{ matrix.service }}
+          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest .
+          cd ..
+
+      - name: Login to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Push to Docker Hub (${{ matrix.service }})
         run: |
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
           docker tag mahnoorsaeed15/${{ matrix.service }}:latest mahnoorsaeed15/${{ matrix.service }}:latest
           docker push mahnoorsaeed15/${{ matrix.service }}:latest
 
