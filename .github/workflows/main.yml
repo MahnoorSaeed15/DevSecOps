@@ -1,0 +1,48 @@
+name: DevSecOps Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  code-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [worker-app, result-app, vote-app]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: SonarQube Scan (${{ matrix.service }})
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_HOST_URL: "http://20.55.25.25:9000"
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: ./${{ matrix.service }}
+
+  build-and-scan:
+    needs: code-scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [worker-app, result-app, vote-app]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Build Docker Image (${{ matrix.service }})
+        run: |
+          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest ./${{ matrix.service }}
+
+      - name: Push to Docker Hub (${{ matrix.service }})
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          docker tag mahnoorsaeed15/${{ matrix.service }}:latest mahnoorsaeed15/${{ matrix.service }}:latest
+          docker push mahnoorsaeed15/${{ matrix.service }}:latest
+
+      - name: Trivy Security Scan (${{ matrix.service }})
+        run: |
+          docker run --rm aquasec/trivy image mahnoorsaeed15/${{ matrix.service }}:latest
