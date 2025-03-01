@@ -27,7 +27,7 @@ jobs:
         if: matrix.service == 'worker-app'
         run: |
           cd ./worker
-          dotnet list **/*.csproj package --vulnerable
+          dotnet list cd ./Worker.csproj package --vulnerable
 
       # Node.js Security (Result-App)
       - name: Run Node.js Security Tools (Result-App)
