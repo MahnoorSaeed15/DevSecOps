@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [vote-app, worker-app, result-app]
+        service: [vote, worker, result]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -42,7 +42,7 @@ jobs:
      runs-on: ubuntu-latest
      strategy:
        matrix:
-        service: [vote-app, worker-app, result-app]  # Updated directory names to match security-scan
+        service: [vote, worker, result]  # Updated directory names to match security-scan
      steps:
      - name: Checkout Code
        uses: actions/checkout@v3
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [vote-app, worker-app, result-app]
+        service: [vote, worker, result]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
