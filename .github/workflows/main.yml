@@ -2,16 +2,15 @@ name: DevSecOps Pipeline
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
     branches:
       - main
 
 jobs:
-  security-scan:
+  code-scan:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [vote-app, worker-app, result-app]
+        service: [worker-app, result-app, vote-app]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -29,35 +28,46 @@ jobs:
           cd ./worker
           dotnet list Worker.csproj package --vulnerable
 
-      # Node.js Security (Result-App)
-      - name: Run Node.js Security Tools (Result-App)
-        if: matrix.service == 'result-app'
-        run: |
-         cd ./result 
-         npm audit --audit-level=critical
+      - name: SonarQube Scan (${{ matrix.service }})
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_HOST_URL: "http://20.55.25.25:9000"
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: ./${{ matrix.service }}
+
+
   build-and-scan:
-    needs: security-scan
+    needs: code-scan
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [vote-app, worker-app, result-app]
+        service: [worker-app, result-app, vote-app]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      # 🔹 Restore Dependencies for .NET (Only for Worker-App)
+      - name: Restore .NET Dependencies (${{ matrix.service }})
+        if: matrix.service == 'worker-app'
+        run: |
+          cd ./worker-app
+          dotnet restore
+
+      # 🔹 Run .NET Security Scan (Only for Worker-App)
+      - name: Check .NET vulnerabilities (${{ matrix.service }})
+        if: matrix.service == 'worker-app'
+        run: |
+          cd ./worker-app
+          dotnet list $(ls *.csproj) package --vulnerable
+
       - name: Build Docker Image (${{ matrix.service }})
         run: |
-          cd ${{ matrix.service }}
-          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest .
-          cd ..
-
-      - name: Login to Docker Hub
-        run: |
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest ./${{ matrix.service }}
 
       - name: Push to Docker Hub (${{ matrix.service }})
         run: |
-          docker tag mahnoorsaeed15/${{ matrix.service }}:latest mahnoorsaeed15/${{ matrix.service }}:latest
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
           docker push mahnoorsaeed15/${{ matrix.service }}:latest
 
       - name: Trivy Security Scan (${{ matrix.service }})
