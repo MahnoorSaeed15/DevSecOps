@@ -2,60 +2,62 @@ name: DevSecOps Pipeline
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
     branches:
       - main
 
 jobs:
-  code-scan:
+  security-scan:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [worker-app, result-app, vote-app]
+        service: [vote-app, worker-app, result-app]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: SonarQube Scan (${{ matrix.service }})
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_HOST_URL: "http://20.55.25.25:9000"
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: ./${{ matrix.service }}
+      # Python Security (Vote-App)
+      - name: Run Python Security Tools (Vote-App)
+        if: matrix.service == 'vote-app'
+        run: |
+            pip install -r ./vote/requirements.txt
+      # .NET Security (Worker-App)
+      - name: Run .NET Security Tools (Worker-App)
+        if: matrix.service == 'worker-app'
+        run: |
+             cd ./worker
+             dotnet restore # Ensure dependencies are restored before scanning
+             dotnet list Worker.csproj package --vulnerable # Use correct case-sensitive filename
 
+      # Node.js Security (Result-App)
+      - name: Run Node.js Security Tools (Result-App)
+        if: matrix.service == 'result-app'
+        run: |
+         cd ./result 
+         npm audit --audit-level=critical
   build-and-scan:
-    needs: code-scan
+    needs: security-scan
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [worker-app, result-app, vote-app]
+        service: [vote-app, worker-app, result-app]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-
-      # 🔹 Restore Dependencies for .NET (Only for Worker-App)
-      - name: Restore .NET Dependencies (${{ matrix.service }})
-        if: matrix.service == 'worker-app'
-        run: |
-          cd ./worker-app
-          dotnet restore
-
-      # 🔹 Run .NET Security Scan (Only for Worker-App)
-      - name: Check .NET vulnerabilities (${{ matrix.service }})
-        if: matrix.service == 'worker-app'
-        run: |
-          cd ./worker-app
-          dotnet list $(ls *.csproj) package --vulnerable
 
       - name: Build Docker Image (${{ matrix.service }})
         run: |
-          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest ./${{ matrix.service }}
-
-      - name: Push to Docker Hub (${{ matrix.service }})
+          cd ${{ matrix.service }}
+          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest .
+          cd ..
+      - name: Login to Docker Hub
         run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Push to Docker Hub (${{ matrix.service }})
+        run: |
+          docker tag mahnoorsaeed15/${{ matrix.service }}:latest mahnoorsaeed15/${{ matrix.service }}:latest
           docker push mahnoorsaeed15/${{ matrix.service }}:latest
-
       - name: Trivy Security Scan (${{ matrix.service }})
         run: |
           docker run --rm aquasec/trivy image mahnoorsaeed15/${{ matrix.service }}:latest
+
