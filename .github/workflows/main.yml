@@ -74,20 +74,57 @@ jobs:
        run: |
         docker run --rm aquasec/trivy image mahnoorsaeed15/${{ matrix.service }}:latest
 
-  sonar-scan:
-    needs: build-and-scan
+  sonarQubeScan:
+    name: SonarQube Scan
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [vote-app, worker-app, result-app]
+        service: [vote, worker, result]  # Ensure all services are scanned
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Run SonarQube Scan (${{ matrix.service }})
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_HOST_URL: "http://20.55.25.25:9000"
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # ✅ Verify Directory Exists Before Running SonarQube
+      - name: Verify Directory Exists (${{ matrix.service }})
+        run: |
+          ls -l
+          if [ ! -d "${{ matrix.service }}" ]; then 
+            echo "Error: Directory ${{ matrix.service }} not found!";
+            exit 1;
+          fi
+
+      # ✅ Cache SonarScanner to Avoid Repeated Downloads
+      - name: Cache SonarScanner
+        uses: actions/cache@v4
         with:
-          projectBaseDir: ./${{ matrix.service }}
+          path: ~/.sonar-scanner
+          key: sonar-scanner-cli
+
+      # ✅ Install SonarScanner If Not Cached
+      - name: Install SonarScanner
+        run: |
+          if [ ! -d "~/.sonar-scanner" ]; then
+            sudo apt-get update && sudo apt-get install -y unzip wget
+            wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
+            unzip sonar-scanner-cli-4.8.0.2856-linux.zip
+            mv sonar-scanner-4.8.0.2856-linux ~/.sonar-scanner
+          fi
+          echo "~/.sonar-scanner/bin" >> $GITHUB_PATH
+
+      # ✅ Verify SonarQube Project Properties File Exists
+      - name: Verify sonar-project.properties Exists
+        run: |
+          if [ ! -f "${{ matrix.service }}/sonar-project.properties" ]; then 
+            echo "Error: sonar-project.properties not found in ${{ matrix.service }}!";
+            exit 1;
+          fi
+
+      # ✅ Run SonarScanner
+      - name: Run SonarScanner (${{ matrix.service }})
+        run: |
+          sonar-scanner -Dsonar.projectBaseDir=${{ matrix.service }} \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_TOKEN
+        env:
+          SONAR_HOST_URL: "http://20.55.25.25:9000"  # Update with your SonarQube Server
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # Ensure this is stored in GitHub Secrets
