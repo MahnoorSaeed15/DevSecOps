@@ -36,28 +36,38 @@ jobs:
          cd ./result 
          npm audit --audit-level=critical
   build-and-scan:
-    needs: security-scan
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [vote-app, worker-app, result-app]
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+     needs: security-scan
+     runs-on: ubuntu-latest
+     strategy:
+       matrix:
+        service: [vote, worker, result] # Updated directory names
+     steps:
+     - name: Checkout Code
+       uses: actions/checkout@v3
 
-      - name: Build Docker Image (${{ matrix.service }})
-        run: |
-          cd ${{ matrix.service }}
-          docker build -t mahnoorsaeed15/${{ matrix.service }}:latest .
-          cd ..
-      - name: Login to Docker Hub
-        run: |
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-      - name: Push to Docker Hub (${{ matrix.service }})
-        run: |
-          docker tag mahnoorsaeed15/${{ matrix.service }}:latest mahnoorsaeed15/${{ matrix.service }}:latest
-          docker push mahnoorsaeed15/${{ matrix.service }}:latest
-      - name: Trivy Security Scan (${{ matrix.service }})
-        run: |
-          docker run --rm aquasec/trivy image mahnoorsaeed15/${{ matrix.service }}:latest
+     - name: Verify Directory Exists (${{ matrix.service }})
+       run: |
+        ls -l
+        if [ ! -d "${{ matrix.service }}" ]; then 
+          echo "Error: Directory ${{ matrix.service }} not found!";
+          exit 1;
+        fi
 
+     - name: Build Docker Image (${{ matrix.service }})
+       run: |
+        cd ${{ matrix.service }}
+        docker build -t mahnoorsaeed15/${{ matrix.service }}:latest .
+        cd ..
+
+     - name: Login to Docker Hub
+       run: |
+        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+     - name: Push to Docker Hub (${{ matrix.service }})
+       run: |
+        docker tag mahnoorsaeed15/${{ matrix.service }}:latest mahnoorsaeed15/${{ matrix.service }}:latest
+        docker push mahnoorsaeed15/${{ matrix.service }}:latest
+
+     - name: Trivy Security Scan (${{ matrix.service }})
+       run: |
+        docker run --rm aquasec/trivy image mahnoorsaeed15/${{ matrix.service }}:latest
