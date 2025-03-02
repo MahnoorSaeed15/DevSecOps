@@ -21,6 +21,7 @@ jobs:
         if: matrix.service == 'vote-app'
         run: |
             pip install -r ./vote/requirements.txt
+
       # .NET Security (Worker-App)
       - name: Run .NET Security Tools (Worker-App)
         if: matrix.service == 'worker-app'
@@ -35,12 +36,13 @@ jobs:
         run: |
          cd ./result 
          npm audit --audit-level=critical
+
   build-and-scan:
      needs: security-scan
      runs-on: ubuntu-latest
      strategy:
        matrix:
-        service: [vote, worker, result] # Updated directory names
+        service: [vote-app, worker-app, result-app]  # Updated directory names to match security-scan
      steps:
      - name: Checkout Code
        uses: actions/checkout@v3
@@ -71,3 +73,21 @@ jobs:
      - name: Trivy Security Scan (${{ matrix.service }})
        run: |
         docker run --rm aquasec/trivy image mahnoorsaeed15/${{ matrix.service }}:latest
+
+  sonar-scan:
+    needs: build-and-scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [vote-app, worker-app, result-app]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Run SonarQube Scan (${{ matrix.service }})
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_HOST_URL: "http://20.55.25.25:9000"
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: ./${{ matrix.service }}
