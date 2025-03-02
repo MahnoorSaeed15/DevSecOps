@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [vote-app, worker-app, result-app]
+        service: [vote, worker, result]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
